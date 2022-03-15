@@ -10,13 +10,16 @@ import sys
 
 class OID:
     """Uniquely represents a given object in the store."""
-    def __init__(self, ns: str, num: int):
-        if isinstance(ns, type):
-            self._ns = Sirope._get_full_name(ns)
-        else:
-            self._ns = ns.strip()
-
+    def __init__(self, cls: type, num: int):
+        self._ns = Sirope._get_full_name(cls)
         self._num = int(num)
+
+    @classmethod
+    def from_dict(cls, d):
+        toret = cls(None, 0)
+        toret._ns = d["namespace"]
+        toret._num = int(d["num"])
+        return toret
 
     @property
     def num(self) -> int:
@@ -25,6 +28,9 @@ class OID:
     @property
     def namespace(self) -> str:
         return self._ns
+
+    def __hash__(self) -> int:
+        return hash((self.namespace, self.num))
 
     def __eq__(self, other: object) -> bool:
         toret = False
@@ -42,27 +48,31 @@ class OID:
         return self._ns + "@" + str(self._num)
 
 
+class Transcoder:
+    CLASS_ID = "__class__"
+
+
 class JSONCoder(json.JSONEncoder):
     @staticmethod
     def build_time_dict(t: datetime.time):
-        return {"__class__": Sirope._get_full_name(t),
+        return {Transcoder.CLASS_ID: Sirope._get_full_name(t),
                 "ms": t.microsecond,
                 "h": t.hour, "minute": t.minute, "s": t.second}
 
     @staticmethod
     def build_date_dict(d: datetime.date):
-        return {"__class__": Sirope._get_full_name(d),
+        return {Transcoder.CLASS_ID: Sirope._get_full_name(d),
                 "d": d.day, "month": d.month, "y": d.year}
 
     def default(self, obj):
         if isinstance(obj, OID):
-            return {"__class__": Sirope._get_full_name(OID),
+            return {Transcoder.CLASS_ID: Sirope._get_full_name(OID),
                     "namespace": obj.namespace,
                     "num": obj.num}
         elif isinstance(obj, datetime.datetime):
             toret = JSONCoder.build_date_dict(obj)
             toret.update(JSONCoder.build_time_dict(obj))
-            toret["__class__"] = Sirope._get_full_name(obj)
+            toret[Transcoder.CLASS_ID] = Sirope._get_full_name(obj)
             return toret
         elif isinstance(obj, datetime.time):
             return JSONCoder.build_time_dict(obj)
@@ -86,7 +96,7 @@ class JSONDCoder(json.JSONDecoder):
 
     @staticmethod
     def from_dict(d):
-        cls_name = d.get("__class__")
+        cls_name = d.get(Transcoder.CLASS_ID)
 
         if cls_name == Sirope._get_full_name(datetime.datetime):
             dt = JSONDCoder.date_from_dict(d)
@@ -95,7 +105,7 @@ class JSONDCoder(json.JSONDecoder):
                                      tm.hour, tm.minute, tm.second,
                                      tm.microsecond)
         elif cls_name == Sirope._get_full_name(OID):
-            return OID(d["namespace"], d["num"])
+            return OID.from_dict(d)
         elif cls_name == Sirope._get_full_name(datetime.date):
             return JSONDCoder.date_from_dict(d)
         elif cls_name == Sirope._get_full_name(datetime.time):
@@ -105,23 +115,28 @@ class JSONDCoder(json.JSONDecoder):
 
 
 class Sirope:
+    OID_ID = "__oid__"
+
     def __init__(self):
         self._redis = redis.Redis()
 
     def save(self, obj: object) -> OID:
         """Saves an object to the Redis store."""
-        ns = Sirope._get_full_name(obj)
-        num_objs = self._redis.hlen(ns)
+        oid = obj.__dict__.get(Sirope.OID_ID)
 
-        # Add the oid to the object, only for info purposes
-        obj.oid = OID(ns, num_objs)
+        if not oid:
+            ns = self._get_full_name(obj)
+            oid = OID(obj.__class__, self._redis.hlen(ns))
+
+            # Add the oid to the object
+            obj.__dict__[Sirope.OID_ID] = oid
         
         self._redis.hset(
-            ns,
-            str(num_objs),
+            oid.namespace,
+            str(oid.num),
             Sirope._json_from_obj(obj))
 
-        return obj.oid
+        return obj.__dict__[Sirope.OID_ID]
 
     def load(self, oid: OID) -> object:
         """Loads an object from the Redis store"""
@@ -147,37 +162,41 @@ class Sirope:
     def multi_delete(self, oids: list[OID]) -> None:
         """Deletes multiple objects"""
         if oids:
-            ns = oid[0]
+            ns = oids[0]
             dict_objs = defaultdict(list)
 
             for oid in oids:
                 dict_objs[oid.namespace].append(str(oid.num))
 
-            for ns, lnums in dict_objs:
+            for ns, lnums in dict_objs.items():
                 self._redis.hdel(ns, *lnums)
 
-    def num_objs_for(self, cls: object):
+    def num_objs_for(self, cls: type):
         """Returns the number of objects stored for this class."""
-        return self._redis.hlen(cls.__name__)
+        return self._redis.hlen(Sirope._get_full_name(cls))
 
-    def load_all_from(self, cls: object) -> list[object]:
+    def load_all_of(self, cls: type) -> list[object]:
         """Returns all objects stored for this class."""
-        json_objs = self._redis.hvals(cls.__name__)
+        json_objs = self._redis.hvals(Sirope._get_full_name(cls))
         
-        return [Sirope._obj_from_json(cls, value) for value in json_objs]
+        return [Sirope._obj_from_json(cls, value.decode("utf-8", "replace"))
+                for value in json_objs]
 
-    def load_from(self, cls: object, oids: list[OID]) -> list[object]:
+    def load_multi_of(self, cls: type, oids: list[OID]) -> list[object]:
         """Loads the objects corresponding to the oids for this class."""
         keys = [str(oid.num) for oid in oids]
-        json_objects = self._redis.hmget(cls.__name__, *keys)
+        json_objects = self._redis.hmget(Sirope._get_full_name(cls), *keys)
 
-        return [Sirope._obj_from_json(jobj) for jobj in json_objects]
+        return [Sirope._obj_from_json(cls, jobj.decode("utf-8", "replace")) for jobj in json_objects]
 
-    def load_all_keys_from(self, cls:object) -> list[OID]:
+    def load_all_keys_of(self, cls: type) -> list[OID]:
         """Returns a list of oid's of stored objects for this class."""
-        ns = cls.__name__
+        ns = Sirope._get_full_name(cls)
         keys = self._redis.hkeys(ns)
-        return [OID(ns, k.decode("utf-8", "?")) for k in keys]
+        return [OID.from_dict({
+                            "namespace": ns,
+                            "num": k.decode("utf-8", "?")})
+                    for k in keys]
 
     @staticmethod
     def _cls_from_str(path: str) -> type:
@@ -202,7 +221,9 @@ class Sirope:
     @staticmethod
     def _obj_from_json(cls: object, json_txt: str) -> object:
         toret = cls()
-        toret.__dict__ = JSONDCoder().decode(json_txt)
+        obj_dict = JSONDCoder().decode(json_txt)
+        obj_dict.pop("__class__", None)
+        toret.__dict__ = obj_dict
         return toret
 
     @staticmethod

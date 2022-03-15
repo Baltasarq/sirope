@@ -57,7 +57,7 @@ class TestSirope(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
         self._oid1 = sirope.OID(Person, 0)
-        self._oid2 = sirope.OID(sirope.Sirope._get_full_name(Person), 1)
+        self._oid2 = sirope.OID(Person, 1)
         self._p1 = Person("Baltasar",
                           datetime.datetime(1990, 1, 1),
                           "baltasarq@gmail.com",
@@ -71,11 +71,23 @@ class TestSirope(unittest.TestCase):
 
         self._sirope = sirope.Sirope()
 
+    def tearDown(self) -> None:
+        super().tearDown()
+
+        if not self._sirope.exists(self._oid1):
+            self._sirope.delete(self._oid1)
+
+        if not self._sirope.exists(self._oid2):
+            self._sirope.delete(self._oid2)
+
     def test_oid(self):
         self.assertEqual(sirope.Sirope._get_full_name(Person), self._oid1.namespace)
         self.assertEqual(0, self._oid1.num)
         self.assertEqual(sirope.Sirope._get_full_name(Person), self._oid2.namespace)
         self.assertEqual(1, self._oid2.num)
+        
+        obj_oid = sirope.OID.from_dict({"namespace": "__main__.Person", "num": 0})
+        self.assertEqual(obj_oid, self._oid1)
 
     def test_json(self):
         json_p1 = sirope.Sirope._json_from_obj(self._p1)
@@ -93,20 +105,101 @@ class TestSirope(unittest.TestCase):
         obj_p1.__dict__ = d
         self.assertEqual(self._p1, obj_p1)
 
+    def test_exists(self):
+        if self._sirope.exists(self._oid1):
+            self._sirope.delete(self._oid1)
+
+        self.assertFalse(self._sirope.exists(self._oid1))
+
     def test_simple_save_restore(self):
         obj_p1 = None
         oid = self._oid1
 
         if self._sirope.exists(oid):
             self._sirope.delete(oid)
+
+        if self._sirope.exists(self._oid2):
+            self._sirope.delete(self._oid2)
         
         oid = self._sirope.save(self._p1)
         obj_p1 = self._sirope.load(oid)
 
+        self.assertEqual(oid, self._oid1)
+        self.assertEqual(oid, self._p1.__oid__)
+        self.assertEqual(oid, obj_p1.__oid__)
+        self.assertEqual(self._p1.__oid__, obj_p1.__oid__)
         self.assertTrue(self._sirope.exists(oid))
         self.assertEqual(self._p1, obj_p1)
-        self.assertEqual(oid, obj_p1.oid)
-        self.assertEqual(self._p1.oid, obj_p1.oid)
+
+        self._sirope.save(self._p1)
+        self.assertTrue(self._sirope.exists(self._oid1))
+        self.assertEqual(1, self._sirope.num_objs_for(Person))
+        self._sirope.delete(self._oid1)
+
+    def test_load_all(self):
+        if not self._sirope.exists(self._oid1):
+            self._sirope.save(self._p1)
+
+        if not self._sirope.exists(self._oid2):
+            self._sirope.save(self._p2)
+
+        self.assertEqual(2, self._sirope.num_objs_for(Person))
+        
+        list_persons = self._sirope.load_all_of(Person)
+        self.assertEqual(2, len(list_persons))
+        self.assertEqual(self._oid1, list_persons[0].__oid__)
+        self.assertEqual(self._oid2, list_persons[1].__oid__)
+
+        self._sirope.delete(self._oid1)
+        self._sirope.delete(self._oid2)
+
+    def test_multi_delete(self):
+        if not self._sirope.exists(self._oid1):
+            self._sirope.save(self._p1)
+        
+        if not self._sirope.exists(self._oid2):
+            self._sirope.save(self._p2)
+
+        self.assertEqual(2, self._sirope.num_objs_for(Person))
+
+        self._sirope.multi_delete([self._oid1, self._oid2])
+        self.assertEqual(0, self._sirope.num_objs_for(Person))
+
+    def test_multi_load(self):
+        if not self._sirope.exists(self._oid1):
+            self._sirope.save(self._p1)
+
+        if not self._sirope.exists(self._oid2):
+            self._sirope.save(self._p2)
+
+        self.assertEqual(2, self._sirope.num_objs_for(Person))
+
+        lps = self._sirope.load_multi_of(Person, [self._oid1, self._oid2])
+
+        self.assertEqual(2, len(lps))
+        self.assertEqual(self._p1, lps[0])
+        self.assertEqual(self._p2, lps[1])
+        
+        self._sirope.delete(self._oid1)
+        self._sirope.delete(self._oid2)
+
+    def test_load_all_oids(self):
+        if not self._sirope.exists(self._oid1):
+            self._sirope.save(self._p1)
+
+        if not self._sirope.exists(self._oid2):
+            self._sirope.save(self._p2)
+
+        self.assertEqual(2, self._sirope.num_objs_for(Person))
+
+        loids = self._sirope.load_all_keys_of(Person)
+        
+        self.assertEqual(2, len(loids))
+        self.assertTrue(self._oid1 in loids)
+        self.assertTrue(self._oid2 in loids)
+        
+        self._sirope.delete(self._oid1)
+        self._sirope.delete(self._oid2)
 
 
 if __name__ == "__main__":
