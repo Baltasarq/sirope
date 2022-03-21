@@ -2,6 +2,8 @@
 
 
 import unittest
+
+from redis import Redis
 import sirope
 import datetime
 
@@ -53,6 +55,65 @@ class Person:
         return f"{self.name} ({self.born}): {self.email}"
 
 
+class TestSafeIndex(unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self._redis = Redis()
+        self._sirope = sirope.Sirope()
+        self._ndx = sirope.SafeIndex(self._redis)
+        self._oid1 = sirope.OID(Person, 0)
+        self._oid2 = sirope.OID(Person, 1)
+
+    def tearDown(self) -> None:
+        super().tearDown()
+
+        if self._ndx.exists_for(self._oid1):
+            self._ndx.delete_for(self._oid1)
+
+        if self._ndx.exists_for(self._oid2):
+            self._ndx.delete_for(self._oid2)
+
+    def test_basics(self):
+        soid1 = self._ndx.build_for(self._oid1)
+        soid2 = self._ndx.build_for(self._oid1)
+        soid3 = self._ndx.build_for(self._oid2)
+        soid4 = self._ndx.build_for(self._oid2)
+
+        self.assertEqual(2, len(self._ndx))
+        self.assertEqual(soid1, soid2)
+        self.assertEqual(soid3, soid4)
+        self.assertEqual(soid1, self._ndx.exists_for(self._oid1))
+        self.assertEqual(soid3, self._ndx.exists_for(self._oid2))
+
+        self._ndx.delete_for(self._oid1)
+        self._ndx.delete_for(self._oid2)
+
+    def test_exists(self):
+        self.assertEqual(None, self._ndx.exists_for(self._oid1))
+        soid1 = self._ndx.build_for(self._oid1)
+
+        self.assertEqual(1, len(self._ndx))
+        self.assertEqual(soid1, self._ndx.exists_for(self._oid1))
+
+        self._ndx.delete_for(self._oid1)
+        self.assertEqual(0, len(self._ndx))
+
+    def test_sirope_basics(self):
+        soid1 = self._sirope.build_safe_for_oid(self._oid1)
+        soid2 = self._sirope.build_safe_for_oid(self._oid1)
+        soid3 = self._sirope.build_safe_for_oid(self._oid2)
+        soid4 = self._sirope.build_safe_for_oid(self._oid2)
+
+        self.assertEqual(2, len(self._ndx))
+        self.assertEqual(soid1, soid2)
+        self.assertEqual(soid3, soid4)
+        self.assertEqual(self._oid1, self._sirope.get_oid_from_safe(soid1))
+        self.assertEqual(self._oid2, self._sirope.get_oid_from_safe(soid3))
+
+        self._ndx.delete_for(self._oid1)
+        self._ndx.delete_for(self._oid2)
+
+
 class TestSirope(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
@@ -74,10 +135,10 @@ class TestSirope(unittest.TestCase):
     def tearDown(self) -> None:
         super().tearDown()
 
-        if not self._sirope.exists(self._oid1):
+        if self._sirope.exists(self._oid1):
             self._sirope.delete(self._oid1)
 
-        if not self._sirope.exists(self._oid2):
+        if self._sirope.exists(self._oid2):
             self._sirope.delete(self._oid2)
 
     def test_oid(self):
@@ -86,7 +147,7 @@ class TestSirope(unittest.TestCase):
         self.assertEqual(sirope.Sirope._get_full_name(Person), self._oid2.namespace)
         self.assertEqual(1, self._oid2.num)
         
-        obj_oid = sirope.OID.from_dict({"namespace": "__main__.Person", "num": 0})
+        obj_oid = sirope.OID.from_pair(("__main__.Person", 0))
         self.assertEqual(obj_oid, self._oid1)
 
     def test_json(self):
@@ -147,8 +208,9 @@ class TestSirope(unittest.TestCase):
         
         list_persons = self._sirope.load_all_of(Person)
         self.assertEqual(2, len(list_persons))
-        self.assertEqual(self._oid1, list_persons[0].__oid__)
-        self.assertEqual(self._oid2, list_persons[1].__oid__)
+        loids = [p.__oid__ for p in list_persons]
+        self.assertTrue(self._oid1 in loids)
+        self.assertTrue(self._oid2 in loids)
 
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
@@ -177,8 +239,8 @@ class TestSirope(unittest.TestCase):
         lps = self._sirope.load_multi_of(Person, [self._oid1, self._oid2])
 
         self.assertEqual(2, len(lps))
-        self.assertEqual(self._p1, lps[0])
-        self.assertEqual(self._p2, lps[1])
+        self.assertTrue(self._p1 in lps)
+        self.assertTrue(self._p2 in lps)
         
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
@@ -200,6 +262,30 @@ class TestSirope(unittest.TestCase):
         
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
+
+    def test_persistent_indexes(self):
+        if not self._sirope.exists(self._oid1):
+            self._sirope.save(self._p1)
+
+        if not self._sirope.exists(self._oid2):
+            self._sirope.save(self._p2)
+
+        soid1 = self._sirope.build_safe_for_oid(self._oid1)
+        soid2 = self._sirope.build_safe_for_oid(self._oid2)
+
+        self.assertEqual(2, self._sirope.num_of_safe_indexes())
+
+        poid1 = self._sirope.get_oid_from_safe(soid1)
+        poid2 = self._sirope.get_oid_from_safe(soid2)
+
+        self.assertEqual(self._oid1, poid1)
+        self.assertEqual(self._oid2, poid2)
+
+        self._sirope.delete(self._oid1)
+        self._sirope.delete(self._oid2)
+
+        self.assertEqual(0, self._sirope.num_of_safe_indexes())
+        self.assertEqual(0, self._sirope.num_objs_for(Person))
 
 
 if __name__ == "__main__":

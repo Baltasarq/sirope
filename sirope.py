@@ -6,6 +6,7 @@ import datetime
 import redis
 import json
 import sys
+import uuid
 
 
 class OID:
@@ -15,11 +16,33 @@ class OID:
         self._num = int(num)
 
     @classmethod
-    def from_dict(cls, d):
+    def from_pair(cls, p):
+        """
+            Create an OID from a pair.
+            :param cls: OID class
+            :param d: A pair with values (<namespace>, <num>)
+            :return: The corresponding OID object.
+        """
         toret = cls(None, 0)
-        toret._ns = d["namespace"]
-        toret._num = int(d["num"])
+        toret._ns = p[0]
+        toret._num = int(p[1])
         return toret
+
+    @classmethod
+    def from_dict(cls, d):
+        """
+            Create an OID from a dict.
+            :param cls: OID class
+            :param d: A dict with the members 'namespace' and 'num'
+            :return: The corresponding OID object.
+        """
+        return OID.from_pair((d["_ns"], int(d["_num"])))
+
+    @classmethod
+    def from_text(cls, toid: str):
+        """Toma una cadena del tipo ns@1 y devuelve el OID."""
+        oid_parts = toid.strip().split('@')
+        return OID.from_pair((oid_parts[0], oid_parts[1]))
 
     @property
     def num(self) -> int:
@@ -66,9 +89,9 @@ class JSONCoder(json.JSONEncoder):
 
     def default(self, obj):
         if isinstance(obj, OID):
-            return {Transcoder.CLASS_ID: Sirope._get_full_name(OID),
-                    "namespace": obj.namespace,
-                    "num": obj.num}
+            toret = obj.__dict__
+            toret.update({Transcoder.CLASS_ID: Sirope._get_full_name(OID)})
+            return toret
         elif isinstance(obj, datetime.datetime):
             toret = JSONCoder.build_date_dict(obj)
             toret.update(JSONCoder.build_time_dict(obj))
@@ -114,11 +137,86 @@ class JSONDCoder(json.JSONDecoder):
         return d
 
 
+class SafeIndex:
+    INDEXES_OIDS_STORE_NAME = "__safe_indexes_oids__"
+    OIDS_INDEXES_STORE_NAME = "__safe_oids_indexes"
+    instance = None
+
+    def __init__(self, redis):
+        self._redis = redis
+
+    def build_for(self, oid: OID) -> str:
+        """Creates (if needed), a new safe id for this OID."""
+        bsoid = self._redis.hget(SafeIndex.OIDS_INDEXES_STORE_NAME,
+                             str(oid))
+        
+        if bsoid:
+            soid = bsoid.decode("utf-8", "replace")
+        else:
+            soid = SafeIndex._create_soid()
+            self._redis.hset(SafeIndex.INDEXES_OIDS_STORE_NAME,
+                            soid, str(oid))
+            self._redis.hset(SafeIndex.OIDS_INDEXES_STORE_NAME,
+                            str(oid), soid)
+
+        return soid
+
+    def exists_for(self, oid: OID) -> str:
+        """Returns the safe oid for this OID, or None if does not exist."""
+        soid = None
+        bsoid = self._redis.hget(SafeIndex.OIDS_INDEXES_STORE_NAME,
+                             str(oid))
+        
+        if bsoid:
+            soid = bsoid.decode("utf-8", "replace")
+
+        return soid
+
+    def get_for(self, soid: str) -> OID:
+        """Returns the OID associated to this safe oid."""
+        toret = None
+        btoid = self._redis.hget(SafeIndex.INDEXES_OIDS_STORE_NAME,
+                            soid)
+
+        if btoid:
+            toid = btoid.decode("utf-8", "replace")
+            toret = OID.from_text(toid)
+
+        return toret
+
+    def delete_for(self, oid: OID):
+        """Deletes the safe oid associated to this OID."""
+        bsoid = self._redis.hget(SafeIndex.OIDS_INDEXES_STORE_NAME,
+                                str(oid))
+
+        if bsoid:
+            soid = bsoid.decode("utf-8", "replace")
+            self._redis.hdel(SafeIndex.INDEXES_OIDS_STORE_NAME,
+                             soid)
+            self._redis.hdel(SafeIndex.OIDS_INDEXES_STORE_NAME,
+                             str(oid))
+
+    def __len__(self):
+        return self._redis.hlen(SafeIndex.INDEXES_OIDS_STORE_NAME)
+
+    @staticmethod
+    def _create_soid():
+        return uuid.uuid4().hex
+
+    @staticmethod
+    def get(redis):
+        if not SafeIndex.instance:
+            SafeIndex.instance = SafeIndex(redis)
+
+        return SafeIndex.instance
+
+
 class Sirope:
     OID_ID = "__oid__"
 
     def __init__(self):
         self._redis = redis.Redis()
+        self._indexes = SafeIndex.get(self._redis)
 
     def save(self, obj: object) -> OID:
         """Saves an object to the Redis store."""
@@ -157,15 +255,16 @@ class Sirope:
 
     def delete(self, oid: OID) -> bool:
         """Deletes a given object."""
+        self._indexes.delete_for(oid)
         return self._redis.hdel(oid.namespace, str(oid.num)) > 0
 
     def multi_delete(self, oids: list[OID]) -> None:
         """Deletes multiple objects"""
         if oids:
-            ns = oids[0]
             dict_objs = defaultdict(list)
 
             for oid in oids:
+                self._indexes.delete_for(oid)
                 dict_objs[oid.namespace].append(str(oid.num))
 
             for ns, lnums in dict_objs.items():
@@ -174,6 +273,9 @@ class Sirope:
     def num_objs_for(self, cls: type):
         """Returns the number of objects stored for this class."""
         return self._redis.hlen(Sirope._get_full_name(cls))
+
+    def num_of_safe_indexes(self) -> int:
+        return len(self._indexes)
 
     def load_all_of(self, cls: type) -> list[object]:
         """Returns all objects stored for this class."""
@@ -193,10 +295,14 @@ class Sirope:
         """Returns a list of oid's of stored objects for this class."""
         ns = Sirope._get_full_name(cls)
         keys = self._redis.hkeys(ns)
-        return [OID.from_dict({
-                            "namespace": ns,
-                            "num": k.decode("utf-8", "?")})
-                    for k in keys]
+        return [OID.from_pair((ns, k.decode("utf-8", "replace")))
+                for k in keys]
+
+    def get_oid_from_safe(self, soid: str) -> OID:
+        return self._indexes.get_for(soid)
+
+    def build_safe_for_oid(self, oid: OID) -> str:
+        return self._indexes.build_for(oid)
 
     @staticmethod
     def _cls_from_str(path: str) -> type:
