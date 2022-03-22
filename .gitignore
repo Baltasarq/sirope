@@ -2,5 +2,10 @@
 *.pyc
 *~
 *.bak
+
+# Redis databases
 dump.rdb
-*.rdb       # Redis database
+*.rdb
+
+# Pypi distribution
+dist/
