@@ -5,19 +5,12 @@ import os
 from distutils.core import setup
 
 
-# Get the long description from the README file
-here = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
-    long_description_text = f.read()
-
-
 setup(
     name = 'sirope',
     packages = ['sirope'],
-    version = '0.1',
+    version = '0.1.1',
     license='MIT',
     description = 'Simple Interface for Redis of Object Persistence',
-    long_description=long_description_text,
     author = 'Baltasar',
     author_email = 'baltasarq@gmail.com',
     url = 'https://github.com/baltasarq/sirope/',
