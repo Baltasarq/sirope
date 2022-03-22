@@ -17,9 +17,7 @@ oid = sirope.save(p1)
 
 ```
 # Retrieve object p1
-restpred_p1 = Person()
 sirope = sirope.Sirope()
-sirope.load(oid, restored_p1)
+p1 = sirope.load(oid)
 print(restored_p1)
 ```
-
