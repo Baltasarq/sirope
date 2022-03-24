@@ -15,8 +15,14 @@ from sirope.utils import cls_from_str
 class Sirope:
     OID_ID = "__oid__"
 
-    def __init__(self):
-        self._redis = redis.Redis()
+    def __init__(self, redis_obj: redis.Redis=None):
+        """Creates a Sirope object from a given Redis.
+            :param redis: A Redis object or None.
+        """
+        if not redis_obj:
+            self._redis = redis.Redis()
+        else:
+            self._redis = redis_obj
         self._indexes = SafeIndex.get(self._redis)
 
     def save(self, obj: object) -> OID:
