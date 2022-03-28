@@ -9,6 +9,15 @@ key-value pairs. Employing the store type called *hash*, objects pertaining to a
 [NoSql](https://en.wikipedia.org/wiki/NoSQL) database.
 
 ```
+class Person:
+    def __init__(self, name: str = "", born: datetime = None):
+        self._name = name
+        self._born = born
+
+    # more things...
+```
+
+```
 # Save object p1
 p1 = Person("Baltasar")
 sirope = sirope.Sirope()
