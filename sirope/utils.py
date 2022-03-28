@@ -6,20 +6,29 @@ import sys
 
 def cls_from_str(path: str) -> type:
     """Returns the class from its full name."""
-    path_parts = path.split('.')
-    cls_name = path_parts.pop()
-    mdl_name = ".".join(path_parts)
-    mdl = sys.modules.get(mdl_name)
-    return mdl.__dict__.get(cls_name) if mdl else None
+    toret = None
 
+    if path:
+        path_parts = path.split('.')
+        cls_name = path_parts.pop()
+        mdl_name = ".".join(path_parts)
+        mdl = sys.modules.get(mdl_name)
+        toret = mdl.__dict__.get(cls_name) if mdl else None
+
+    return toret
 
 def full_name_from_obj(o: object) -> str:
     """Returns the full qualified name of the class of this object."""
-    cl = o.__class__ if not isinstance(o, type) else o
-    module = cl.__module__
-    cls_name = cl.__name__
+    toret = None
 
-    if module is None or module == str.__class__.__module__:
-        return cls_name
+    if o:
+        cl = o.__class__ if not isinstance(o, type) else o
+        module = cl.__module__
+        cls_name = cl.__name__
 
-    return module + '.' + cls_name
+        if module is None or module == str.__class__.__module__:
+            toret = cls_name
+        else:
+            toret = module + '.' + cls_name
+
+    return toret

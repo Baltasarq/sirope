@@ -18,9 +18,18 @@ class OID:
             :param d: A pair with values (<namespace>, <num>)
             :return: The corresponding OID object.
         """
-        toret = cls(None, 0)
-        toret._ns = p[0]
-        toret._num = int(p[1])
+        toret = None
+
+        if cls and p:
+            toret = cls(None, 0)
+            toret._ns = p[0]
+            txt_num = p[1]
+
+            if isinstance(txt_num, bytes):
+                num = num.decode("utf-8", "replace")
+
+            toret._num = int(txt_num)
+
         return toret
 
     @classmethod
