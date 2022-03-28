@@ -2,6 +2,7 @@
 
 
 from collections import defaultdict
+from typing import Callable
 import redis
 
 from sirope.oid import OID
@@ -52,9 +53,7 @@ class Sirope:
             raise NameError(ns)
 
         str_num = str(oid.num)
-        raw_json = self._redis.hget(ns, str_num)
-        txt_json = raw_json.decode("utf-8", "replace") if raw_json else ""
-        return Sirope._obj_from_json(cls, txt_json)
+        return Sirope._obj_from_json(cls, self._redis.hget(ns, str_num))
 
     def exists(self, oid: OID) -> bool:
         """Determines whether an object exists or not."""
@@ -86,24 +85,28 @@ class Sirope:
 
     def load_all_of(self, cls: type) -> list[object]:
         """Returns all objects stored for this class."""
-        json_objs = self._redis.hvals(full_name_from_obj(cls))
-        
-        return [Sirope._obj_from_json(cls, value.decode("utf-8", "replace"))
-                for value in json_objs]
+        json_objs = self._redis.hvals(full_name_from_obj(cls))        
+        return [Sirope._obj_from_json(cls, value) for value in json_objs]
 
     def load_multi_of(self, cls: type, oids: list[OID]) -> list[object]:
         """Loads the objects corresponding to the oids for this class."""
         keys = [str(oid.num) for oid in oids]
         json_objects = self._redis.hmget(full_name_from_obj(cls), *keys)
 
-        return [Sirope._obj_from_json(cls, jobj.decode("utf-8", "replace")) for jobj in json_objects]
+        return [Sirope._obj_from_json(cls, jobj) for jobj in json_objects]
 
     def load_all_keys_of(self, cls: type) -> list[OID]:
         """Returns a list of oid's of stored objects for this class."""
         ns = full_name_from_obj(cls)
         keys = self._redis.hkeys(ns)
-        return [OID.from_pair((ns, k.decode("utf-8", "replace")))
-                for k in keys]
+        return [OID.from_pair((ns, k)) for k in keys]
+
+    def filter_by(self, cls: type, pred: Callable) -> list:
+        ns = full_name_from_obj(cls)
+
+        return [Sirope._obj_from_json(cls, vp[1])
+                    for vp in self._redis.hscan_iter(ns)
+                    if pred(Sirope._obj_from_json(cls, vp[1]))]
 
     def get_oid_from_safe(self, soid: str) -> OID:
         return self._indexes.get_for(soid)
@@ -112,11 +115,18 @@ class Sirope:
         return self._indexes.build_for(oid)
 
     @staticmethod
-    def _obj_from_json(cls: object, json_txt: str) -> object:
-        toret = cls()
-        obj_dict = JSONDCoder().decode(json_txt)
-        obj_dict.pop("__class__", None)
-        toret.__dict__ = obj_dict
+    def _obj_from_json(cls: object, json_txt: str|bytes) -> object:
+        toret = None
+
+        if cls and json_txt:
+            toret = cls()
+
+            if isinstance(json_txt, bytes):
+                json_txt = json_txt.decode("utf-8", "replace")
+
+            obj_dict = JSONDCoder().decode(json_txt)
+            obj_dict.pop("__class__", None)
+            toret.__dict__ = obj_dict
         return toret
 
     @staticmethod

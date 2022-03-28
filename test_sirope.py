@@ -121,7 +121,7 @@ class TestSirope(unittest.TestCase):
         self._oid1 = sirope.OID(Person, 0)
         self._oid2 = sirope.OID(Person, 1)
         self._p1 = Person("Baltasar",
-                          datetime.datetime(1990, 1, 1),
+                          datetime.datetime(1970, 1, 1),
                           "baltasarq@gmail.com",
                           datetime.datetime.now().date(),
                           datetime.datetime.now().time())
@@ -264,6 +264,27 @@ class TestSirope(unittest.TestCase):
         self.assertTrue(self._oid1 in loids)
         self.assertTrue(self._oid2 in loids)
         
+        self._sirope.delete(self._oid1)
+        self._sirope.delete(self._oid2)
+
+    def test_filter_by(self):
+        if not self._sirope.exists(self._oid1):
+            self._sirope.save(self._p1)
+
+        if not self._sirope.exists(self._oid2):
+            self._sirope.save(self._p2)
+
+        self.assertEqual(2, self._sirope.num_objs_for(Person))
+
+        fl1 = self._sirope.filter_by(Person, lambda p: p.born.year == 1970)
+        fl2 = self._sirope.filter_by(Person, lambda p: p.name == "Rosa")
+
+        self.assertEqual(1, len(fl1))
+        self.assertEqual(1, len(fl2))
+
+        self.assertEqual(self._p1, fl1[0])
+        self.assertEqual(self._p2, fl2[0])
+
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
 
