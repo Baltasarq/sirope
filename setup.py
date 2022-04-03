@@ -8,7 +8,7 @@ from distutils.core import setup
 setup(
     name = 'sirope',
     packages = ['sirope'],
-    version = '0.1.3',
+    version = '0.1.4',
     license='MIT',
     description = 'Simple Interface for Redis of Object Persistence',
     author = 'Baltasar',
