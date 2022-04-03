@@ -288,6 +288,24 @@ class TestSirope(unittest.TestCase):
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
 
+    def test_enumerate(self):
+        lps = [(self._oid1, self._p1), (self._oid2, self._p2)]
+
+        for pp in lps:
+            if not self._sirope.exists(pp[0]):
+                self._sirope.save(pp[1])
+
+        self.assertEqual(len(lps), self._sirope.num_objs_for(Person))
+
+        for i, p in enumerate(self._sirope.enumerate(Person)):
+            self.assertEqual(lps[i][1], p)
+            lps[i] = (lps[i][0], p)
+
+        for p in lps:
+            self._sirope.delete(p[1].__oid__)
+
+        lps.clear()
+
     def test_persistent_indexes(self):
         if not self._sirope.exists(self._oid1):
             self._sirope.save(self._p1)

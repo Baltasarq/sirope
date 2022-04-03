@@ -15,7 +15,7 @@ class OID:
         """
             Create an OID from a pair.
             :param cls: OID class
-            :param d: A pair with values (<namespace>, <num>)
+            :param p: A pair with values (<namespace>, <num>)
             :return: The corresponding OID object.
         """
         toret = None
@@ -26,7 +26,7 @@ class OID:
             txt_num = p[1]
 
             if isinstance(txt_num, bytes):
-                num = num.decode("utf-8", "replace")
+                num = txt_num.decode("utf-8", "replace")
 
             toret._num = int(txt_num)
 

@@ -83,6 +83,11 @@ class Sirope:
     def num_of_safe_indexes(self) -> int:
         return len(self._indexes)
 
+    def enumerate(self, cls: type):
+        """Returns all objects stored for this class, as an iterator."""
+        for vp in self._redis.hscan_iter(full_name_from_obj(cls)):
+            yield Sirope._obj_from_json(cls, vp[1])
+
     def load_all_of(self, cls: type) -> list[object]:
         """Returns all objects stored for this class."""
         json_objs = self._redis.hvals(full_name_from_obj(cls))        
