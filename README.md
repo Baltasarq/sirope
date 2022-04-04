@@ -10,7 +10,7 @@ key-value pairs. Employing the store type called *hash*, objects pertaining to a
 
 ```
 class Person:
-    def __init__(self, name: str = "", born: datetime = None):
+    def __init__(self, name: str, born: datetime):
         self._name = name
         self._born = born
 
