@@ -76,11 +76,11 @@ class Sirope:
             for ns, lnums in dict_objs.items():
                 self._redis.hdel(ns, *lnums)
 
-    def num_objs_for(self, cls: type):
+    def num_objs(self, cls: type):
         """Returns the number of objects stored for this class."""
         return self._redis.hlen(full_name_from_obj(cls))
 
-    def num_of_safe_indexes(self) -> int:
+    def num_safe_indexes(self) -> int:
         return len(self._indexes)
 
     def enumerate(self, cls: type):
@@ -88,30 +88,45 @@ class Sirope:
         for vp in self._redis.hscan_iter(full_name_from_obj(cls)):
             yield Sirope._obj_from_json(cls, vp[1])
 
-    def load_all_of(self, cls: type) -> list[object]:
+    def load_all(self, cls: type) -> list[object]:
         """Returns all objects stored for this class."""
         json_objs = self._redis.hvals(full_name_from_obj(cls))        
         return [Sirope._obj_from_json(cls, value) for value in json_objs]
 
-    def load_multi_of(self, cls: type, oids: list[OID]) -> list[object]:
+    def load_multi(self, cls: type, oids: list[OID]) -> list[object]:
         """Loads the objects corresponding to the oids for this class."""
         keys = [str(oid.num) for oid in oids]
         json_objects = self._redis.hmget(full_name_from_obj(cls), *keys)
 
         return [Sirope._obj_from_json(cls, jobj) for jobj in json_objects]
 
-    def load_all_keys_of(self, cls: type) -> list[OID]:
+    def load_all_keys(self, cls: type) -> list[OID]:
         """Returns a list of oid's of stored objects for this class."""
         ns = full_name_from_obj(cls)
         keys = self._redis.hkeys(ns)
         return [OID.from_pair((ns, k)) for k in keys]
 
-    def filter_by(self, cls: type, pred: Callable) -> list:
+    def filter(self, cls: type, pred: Callable) -> list[object]:
         ns = full_name_from_obj(cls)
 
-        return [Sirope._obj_from_json(cls, vp[1])
-                    for vp in self._redis.hscan_iter(ns)
-                    if pred(Sirope._obj_from_json(cls, vp[1]))]
+        for vp in self._redis.hscan_iter(ns):
+            obj = Sirope._obj_from_json(cls, vp[1])
+
+            if pred(obj):
+                yield obj
+
+    def find_first(self, cls: type, pred: Callable) -> list[object]:
+        ns = full_name_from_obj(cls)
+        toret = None
+
+        for vp in self._redis.hscan_iter(ns):
+            obj = Sirope._obj_from_json(cls, vp[1])
+
+            if pred(obj):
+                toret = obj
+                break
+
+        return toret
 
     def get_oid_from_safe(self, soid: str) -> OID:
         return self._indexes.get_for(soid)

@@ -198,7 +198,7 @@ class TestSirope(unittest.TestCase):
 
         self._sirope.save(self._p1)
         self.assertTrue(self._sirope.exists(self._oid1))
-        self.assertEqual(1, self._sirope.num_objs_for(Person))
+        self.assertEqual(1, self._sirope.num_objs(Person))
         self._sirope.delete(self._oid1)
 
     def test_load_all(self):
@@ -208,9 +208,9 @@ class TestSirope(unittest.TestCase):
         if not self._sirope.exists(self._oid2):
             self._sirope.save(self._p2)
 
-        self.assertEqual(2, self._sirope.num_objs_for(Person))
+        self.assertEqual(2, self._sirope.num_objs(Person))
         
-        list_persons = self._sirope.load_all_of(Person)
+        list_persons = self._sirope.load_all(Person)
         self.assertEqual(2, len(list_persons))
         loids = [p.__oid__ for p in list_persons]
         self.assertTrue(self._oid1 in loids)
@@ -226,10 +226,10 @@ class TestSirope(unittest.TestCase):
         if not self._sirope.exists(self._oid2):
             self._sirope.save(self._p2)
 
-        self.assertEqual(2, self._sirope.num_objs_for(Person))
+        self.assertEqual(2, self._sirope.num_objs(Person))
 
         self._sirope.multi_delete([self._oid1, self._oid2])
-        self.assertEqual(0, self._sirope.num_objs_for(Person))
+        self.assertEqual(0, self._sirope.num_objs(Person))
 
     def test_multi_load(self):
         if not self._sirope.exists(self._oid1):
@@ -238,9 +238,9 @@ class TestSirope(unittest.TestCase):
         if not self._sirope.exists(self._oid2):
             self._sirope.save(self._p2)
 
-        self.assertEqual(2, self._sirope.num_objs_for(Person))
+        self.assertEqual(2, self._sirope.num_objs(Person))
 
-        lps = self._sirope.load_multi_of(Person, [self._oid1, self._oid2])
+        lps = self._sirope.load_multi(Person, [self._oid1, self._oid2])
 
         self.assertEqual(2, len(lps))
         self.assertTrue(self._p1 in lps)
@@ -256,9 +256,9 @@ class TestSirope(unittest.TestCase):
         if not self._sirope.exists(self._oid2):
             self._sirope.save(self._p2)
 
-        self.assertEqual(2, self._sirope.num_objs_for(Person))
+        self.assertEqual(2, self._sirope.num_objs(Person))
 
-        loids = self._sirope.load_all_keys_of(Person)
+        loids = self._sirope.load_all_keys(Person)
         
         self.assertEqual(2, len(loids))
         self.assertTrue(self._oid1 in loids)
@@ -267,18 +267,18 @@ class TestSirope(unittest.TestCase):
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
 
-    def test_filter_by(self):
+    def test_filter(self):
         if not self._sirope.exists(self._oid1):
             self._sirope.save(self._p1)
 
         if not self._sirope.exists(self._oid2):
             self._sirope.save(self._p2)
 
-        self.assertEqual(2, self._sirope.num_objs_for(Person))
+        self.assertEqual(2, self._sirope.num_objs(Person))
 
-        fl1 = self._sirope.filter_by(Person, lambda p: p.born.year == 1970)
-        fl2 = self._sirope.filter_by(Person, lambda p: p.name == "Rosa")
-
+        fl1 = list(self._sirope.filter(Person, lambda p: p.born.year == 1970))
+        fl2 = list(self._sirope.filter(Person, lambda p: p.name == "Rosa"))
+        
         self.assertEqual(1, len(fl1))
         self.assertEqual(1, len(fl2))
 
@@ -295,11 +295,29 @@ class TestSirope(unittest.TestCase):
             if not self._sirope.exists(pp[0]):
                 self._sirope.save(pp[1])
 
-        self.assertEqual(len(lps), self._sirope.num_objs_for(Person))
+        self.assertEqual(len(lps), self._sirope.num_objs(Person))
 
+        persons = [pair[1] for pair in lps]
         for i, p in enumerate(self._sirope.enumerate(Person)):
-            self.assertEqual(lps[i][1], p)
+            self.assertTrue(p in persons)
             lps[i] = (lps[i][0], p)
+
+        for p in lps:
+            self._sirope.delete(p[1].__oid__)
+
+        lps.clear()
+
+    def test_find_first(self):
+        lps = [(self._oid1, self._p1), (self._oid2, self._p2)]
+
+        for pp in lps:
+            if not self._sirope.exists(pp[0]):
+                self._sirope.save(pp[1])
+
+        self.assertEqual(len(lps), self._sirope.num_objs(Person))
+
+        self.assertEqual(lps[0][1],
+                         self._sirope.find_first(Person, lambda p: p.name == "Baltasar"))
 
         for p in lps:
             self._sirope.delete(p[1].__oid__)
@@ -316,7 +334,7 @@ class TestSirope(unittest.TestCase):
         soid1 = self._sirope.build_safe_for_oid(self._oid1)
         soid2 = self._sirope.build_safe_for_oid(self._oid2)
 
-        self.assertEqual(2, self._sirope.num_of_safe_indexes())
+        self.assertEqual(2, self._sirope.num_safe_indexes())
 
         poid1 = self._sirope.get_oid_from_safe(soid1)
         poid2 = self._sirope.get_oid_from_safe(soid2)
@@ -327,8 +345,8 @@ class TestSirope(unittest.TestCase):
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
 
-        self.assertEqual(0, self._sirope.num_of_safe_indexes())
-        self.assertEqual(0, self._sirope.num_objs_for(Person))
+        self.assertEqual(0, self._sirope.num_safe_indexes())
+        self.assertEqual(0, self._sirope.num_objs(Person))
 
 
 if __name__ == "__main__":
