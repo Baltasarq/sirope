@@ -10,9 +10,9 @@ import datetime
 
 class Person:
     def __init__(self,
-                 name: str="", born: datetime.datetime=None, email: str="",
-                 creation_date: datetime.date=None,
-                 creation_time: datetime.time=None):
+                 name: str, born: datetime.datetime, email: str,
+                 creation_date: datetime.date,
+                 creation_time: datetime.time):
         self._name = name
         self._born = born
         self._email = email

@@ -139,7 +139,7 @@ class Sirope:
         toret = None
 
         if cls and json_txt:
-            toret = cls()
+            toret = object.__new__(cls)
 
             if isinstance(json_txt, bytes):
                 json_txt = json_txt.decode("utf-8", "replace")
