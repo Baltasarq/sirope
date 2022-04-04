@@ -3,7 +3,6 @@
 
 import unittest
 
-from redis import Redis
 import sirope
 import datetime
 
