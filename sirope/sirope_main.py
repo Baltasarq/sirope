@@ -160,10 +160,10 @@ class Sirope:
 
         return toret
 
-    def get_oid_from_safe(self, soid: str) -> OID:
-        return self._indexes.get_for(soid)
+    def oid_from(self, safe_oid: str) -> OID:
+        return self._indexes.get_for(safe_oid)
 
-    def build_safe_for_oid(self, oid: OID) -> str:
+    def safe_from(self, oid: OID) -> str:
         return self._indexes.build_for(oid)
 
     @staticmethod
