@@ -83,15 +83,42 @@ class Sirope:
     def num_safe_indexes(self) -> int:
         return len(self._indexes)
 
-    def enumerate(self, cls: type):
+    def enumerate(self, cls: type, max: int = 0):
         """Returns all objects stored for this class, as an iterator."""
+        num = 0
         for vp in self._redis.hscan_iter(full_name_from_obj(cls)):
             yield Sirope._obj_from_json(cls, vp[1])
+
+            num += 1
+            if (max > 0
+            and num >= max):
+                break
 
     def load_all(self, cls: type) -> list[object]:
         """Returns all objects stored for this class."""
         json_objs = self._redis.hvals(full_name_from_obj(cls))        
         return [Sirope._obj_from_json(cls, value) for value in json_objs]
+
+    def load_first(self, cls: type, num: int) -> list[object]:
+        """Returns the first max objects in stored order for this class."""
+        # Determine num
+        num = max(1, num)
+
+        # Retrieve in store order
+        for i in range(num):
+            yield self.load(OID.from_pair((full_name_from_obj(cls), i)))
+
+
+    def load_last(self, cls: type, num: int) -> list[object]:
+        """Returns the last max objects in stored order for this class."""
+        last = self.num_objs(cls) - 1
+
+        # Determine max
+        num = min(last + 1, max(1, num))
+
+        # Retrieve in store order
+        for i in range(last, last - num, -1):
+            yield self.load(OID.from_pair((full_name_from_obj(cls), i)))
 
     def load_multi(self, cls: type, oids: list[OID]) -> list[object]:
         """Loads the objects corresponding to the oids for this class."""
@@ -106,15 +133,20 @@ class Sirope:
         keys = self._redis.hkeys(ns)
         return [OID.from_pair((ns, k)) for k in keys]
 
-    def filter(self, cls: type, pred: Callable) -> list[object]:
+    def filter(self, cls: type, pred: Callable, max: int=0) -> list[object]:
         ns = full_name_from_obj(cls)
 
+        num = 0
         for vp in self._redis.hscan_iter(ns):
             obj = Sirope._obj_from_json(cls, vp[1])
 
             if pred(obj):
                 yield obj
+                num += 1
 
+            if max > 0 and num >= max:
+                break
+            
     def find_first(self, cls: type, pred: Callable) -> list[object]:
         ns = full_name_from_obj(cls)
         toret = None
