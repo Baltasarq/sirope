@@ -2,11 +2,13 @@
 
 
 import sys
+from typing import Any
 
 
-def cls_from_str(path: str) -> type:
+def cls_from_str(path: str) -> Any:
     """Returns the class from its full name."""
-    toret = None
+    if not path:
+        raise ValueError("cls_from_str(): path invalid")
 
     if path:
         path_parts = path.split('.')
@@ -19,7 +21,8 @@ def cls_from_str(path: str) -> type:
 
 def full_name_from_obj(o: object) -> str:
     """Returns the full qualified name of the class of this object."""
-    toret = None
+    if not o:
+        raise ValueError("full_name_from_obj(): invalid object")
 
     if o:
         cl = o.__class__ if not isinstance(o, type) else o

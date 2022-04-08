@@ -21,13 +21,17 @@ class OID:
         toret = None
 
         if cls and p:
-            toret = cls(None, 0)
-            toret._ns = p[0]
+            toret = object.__new__(cls)
+            txt_ns = p[0]
             txt_num = p[1]
 
-            if isinstance(txt_num, bytes):
-                num = txt_num.decode("utf-8", "replace")
+            if isinstance(txt_ns, bytes):
+                txt_ns = txt_ns.decode("utf-8", "replace")
 
+            if isinstance(txt_num, bytes):
+                txt_num = txt_num.decode("utf-8", "replace")
+
+            toret._ns = txt_ns
             toret._num = int(txt_num)
 
         return toret

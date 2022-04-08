@@ -2,6 +2,7 @@
 
 
 import uuid
+from typing import Optional
 
 from sirope.oid import OID
 
@@ -30,7 +31,7 @@ class SafeIndex:
 
         return soid
 
-    def exists_for(self, oid: OID) -> str:
+    def exists_for(self, oid: OID) -> Optional[str]:
         """Returns the safe oid for this OID, or None if does not exist."""
         soid = None
         bsoid = self._redis.hget(SafeIndex.OIDS_INDEXES_STORE_NAME,
@@ -41,7 +42,7 @@ class SafeIndex:
 
         return soid
 
-    def get_for(self, soid: str) -> OID:
+    def get_for(self, soid: str) -> Optional[OID]:
         """Returns the OID associated to this safe oid."""
         toret = None
         btoid = self._redis.hget(SafeIndex.INDEXES_OIDS_STORE_NAME,
