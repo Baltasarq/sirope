@@ -11,12 +11,14 @@ class Person:
     def __init__(self,
                  name: str, born: datetime.datetime, email: str,
                  creation_date: datetime.date,
-                 creation_time: datetime.time):
+                 creation_time: datetime.time,
+                 blob: bytes):
         self._name = name
         self._born = born
         self._email = email
         self._creation_date = creation_date
         self._creation_time = creation_time
+        self._blob = blob
 
     @property
     def name(self) -> str:
@@ -46,7 +48,8 @@ class Person:
                     and self.born == other.born
                     and self.email == other.email
                     and self.creation_date == other.creation_date
-                    and self.creation_time == other.creation_time)
+                    and self.creation_time == other.creation_time
+                    and self._blob == other._blob)
         
         return toret
 
@@ -123,12 +126,14 @@ class TestSirope(unittest.TestCase):
                           datetime.datetime(1970, 1, 1),
                           "baltasarq@gmail.com",
                           datetime.datetime.now().date(),
-                          datetime.datetime.now().time())
+                          datetime.datetime.now().time(),
+                          b"hola,balta")
         self._p2 = Person("Rosa",
                           datetime.datetime(1984, 1, 1),
                           "zociguiguigui@gmail.com",
                           datetime.datetime.now().date(),
-                          datetime.datetime.now().time())
+                          datetime.datetime.now().time(),
+                          b"hola,rosa")
 
         self._sirope = sirope.Sirope()
 
