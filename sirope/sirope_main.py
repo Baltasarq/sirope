@@ -159,7 +159,7 @@ class Sirope:
             if max > 0 and num >= max:
                 break
             
-    def find_first(self, cls: type, pred: Callable) -> object|None:
+    def find_first(self, cls: type, pred: Callable) -> "object|None":
         """Returns the first object compliant with pred, or None."""
         ns = full_name_from_obj(cls)
         toret = None
@@ -180,7 +180,7 @@ class Sirope:
         return self._indexes.build_for(oid)
 
     @staticmethod
-    def _obj_from_json(cls: type, json_txt: Optional[str|bytes]) -> object:
+    def _obj_from_json(cls: type, json_txt: "str|bytes|None") -> object:
         if not cls:
             raise ValueError("invalid class")
 

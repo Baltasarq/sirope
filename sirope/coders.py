@@ -16,18 +16,18 @@ class Transcoder:
 
 class JSONCoder(json.JSONEncoder):
     @staticmethod
-    def build_time_dict(t: datetime.time) -> dict[str]:
+    def build_time_dict(t: datetime.time) -> "dict[str, str|int]":
         return {Transcoder.CLASS_ID: full_name_from_obj(t),
                 "ms": t.microsecond,
                 "h": t.hour, "minute": t.minute, "s": t.second}
 
     @staticmethod
-    def build_date_dict(d: datetime.date) -> dict[str]:
+    def build_date_dict(d: datetime.date) -> "dict[str, str|int]":
         return {Transcoder.CLASS_ID: full_name_from_obj(d),
                 "d": d.day, "month": d.month, "y": d.year}
 
     @staticmethod
-    def build_bytes_dict(b: bytes) -> dict[str]:
+    def build_bytes_dict(b: bytes) -> "dict[str, str]":
         return {Transcoder.CLASS_ID: Transcoder.BYTES_ID,
                 "d": base64.b64encode(b).decode("ascii")}
 
@@ -56,19 +56,19 @@ class JSONDCoder(json.JSONDecoder):
         json.JSONDecoder.__init__(self, object_hook=JSONDCoder.from_dict)
 
     @staticmethod
-    def date_from_dict(d: dict[str]) -> datetime.date:
+    def date_from_dict(d: dict) -> datetime.date:
         return datetime.date(d["y"], d["month"], d["d"])
 
     @staticmethod
-    def time_from_dict(d: dict[str]) -> datetime.time:
+    def time_from_dict(d: dict) -> datetime.time:
         return datetime.time(d["h"], d["minute"], d["s"], d["ms"])
 
     @staticmethod
-    def bytes_from_dict(d: dict[str]) -> bytes:
+    def bytes_from_dict(d: dict) -> bytes:
         return base64.b64decode(d["d"].encode())
 
     @staticmethod
-    def from_dict(d: dict["str"]) -> object:
+    def from_dict(d: dict) -> object:
         cls_name = d.get(Transcoder.CLASS_ID)
 
         if cls_name == full_name_from_obj(datetime.datetime):
