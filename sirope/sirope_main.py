@@ -66,7 +66,7 @@ class Sirope:
         self._indexes.delete_for(oid)
         return self._redis.hdel(oid.namespace, str(oid.num)) > 0
 
-    def multi_delete(self, oids: list[OID]) -> None:
+    def multi_delete(self, oids: "list[OID]") -> None:
         """Deletes multiple objects"""
         if oids:
             dict_objs = defaultdict(list)
@@ -123,7 +123,7 @@ class Sirope:
         for i in range(last, last - num, -1):
             yield self.load(OID.from_pair((full_name_from_obj(cls), i)))
 
-    def multi_load(self, oids: list[OID]) -> Iterable[object]:
+    def multi_load(self, oids: "list[OID]") -> Iterable[object]:
         """Returns an iterable for the objects corresponding
            to the oids in the given list.
         """
