@@ -10,7 +10,7 @@ from sirope.oid import OID
 class SafeIndex:
     INDEXES_OIDS_STORE_NAME = "__safe_indexes_oids__"
     OIDS_INDEXES_STORE_NAME = "__safe_oids_indexes"
-    instance = None
+    instance: "Optional[SafeIndex]" = None
 
     def __init__(self, redis):
         self._redis = redis
@@ -19,7 +19,7 @@ class SafeIndex:
         """Creates (if needed), a new safe id for this OID."""
         bsoid = self._redis.hget(SafeIndex.OIDS_INDEXES_STORE_NAME,
                              str(oid))
-        
+
         if bsoid:
             soid = bsoid.decode("utf-8", "replace")
         else:
@@ -36,7 +36,7 @@ class SafeIndex:
         soid = None
         bsoid = self._redis.hget(SafeIndex.OIDS_INDEXES_STORE_NAME,
                              str(oid))
-        
+
         if bsoid:
             soid = bsoid.decode("utf-8", "replace")
 

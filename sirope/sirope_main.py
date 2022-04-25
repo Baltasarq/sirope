@@ -187,7 +187,7 @@ class Sirope:
         if not json_txt:
             raise ValueError("invalid json source")
 
-        toret = object.__new__(cls)
+        toret: object = object.__new__(cls)
 
         if isinstance(json_txt, bytes):
             json_txt = json_txt.decode("utf-8", "replace")

@@ -50,7 +50,7 @@ class Person:
                     and self.creation_date == other.creation_date
                     and self.creation_time == other.creation_time
                     and self._blob == other._blob)
-        
+
         return toret
 
     def __str__(self):
@@ -151,9 +151,10 @@ class TestSirope(unittest.TestCase):
         self.assertEqual(0, self._oid1.num)
         self.assertTrue(self._oid2.namespace.endswith(Person.__name__))
         self.assertEqual(1, self._oid2.num)
-        
+
         obj_oid = sirope.OID.from_pair(("__main__.Person", 0))
         self.assertEqual(obj_oid, self._oid1)
+
     """
     def test_json(self):
         json_p1 = sirope.main_class._json_from_obj(self._p1)
@@ -189,7 +190,7 @@ class TestSirope(unittest.TestCase):
 
         if self._sirope.exists(self._oid2):
             self._sirope.delete(self._oid2)
-        
+
         oid = self._sirope.save(self._p1)
         obj_p1 = self._sirope.load(oid)
 
@@ -208,7 +209,7 @@ class TestSirope(unittest.TestCase):
     def test_multiple_saves_same_object(self):
         if self._sirope.exists(self._oid1):
             self._sirope.delete(self._oid1)
-        
+
         oid1 = self._sirope.save(self._p1)
         self.assertEqual(1, self._sirope.num_objs(Person))
 
@@ -234,7 +235,7 @@ class TestSirope(unittest.TestCase):
             self._sirope.save(self._p2)
 
         self.assertEqual(2, self._sirope.num_objs(Person))
-        
+
         list_persons = list(self._sirope.load_all(Person))
         self.assertEqual(2, len(list_persons))
         loids = [p.__oid__ for p in list_persons]
@@ -247,7 +248,7 @@ class TestSirope(unittest.TestCase):
     def test_multi_delete(self):
         if not self._sirope.exists(self._oid1):
             self._sirope.save(self._p1)
-        
+
         if not self._sirope.exists(self._oid2):
             self._sirope.save(self._p2)
 
@@ -270,7 +271,7 @@ class TestSirope(unittest.TestCase):
         self.assertEqual(2, len(lps))
         self.assertTrue(self._p1 in lps)
         self.assertTrue(self._p2 in lps)
-        
+
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
 
@@ -284,11 +285,11 @@ class TestSirope(unittest.TestCase):
         self.assertEqual(2, self._sirope.num_objs(Person))
 
         loids = list(self._sirope.load_all_keys(Person))
-        
+
         self.assertEqual(2, len(loids))
         self.assertTrue(self._oid1 in loids)
         self.assertTrue(self._oid2 in loids)
-        
+
         self._sirope.delete(self._oid1)
         self._sirope.delete(self._oid2)
 
@@ -303,7 +304,7 @@ class TestSirope(unittest.TestCase):
 
         fl1 = list(self._sirope.filter(Person, lambda p: p.born.year == 1970))
         fl2 = list(self._sirope.filter(Person, lambda p: p.name == "Rosa"))
-        
+
         self.assertEqual(1, len(fl1))
         self.assertEqual(1, len(fl2))
 
@@ -324,7 +325,7 @@ class TestSirope(unittest.TestCase):
 
         fl1 = list(self._sirope.filter(Person, lambda p: p.born.year >= 1970, max=1))
         fl2 = list(self._sirope.filter(Person, lambda p: p.born.year >= 1970))
-        
+
         self.assertEqual(1, len(fl1))
         self.assertEqual(2, len(fl2))
 
