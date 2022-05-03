@@ -4,7 +4,6 @@
 from collections import defaultdict
 from typing import Callable
 from typing import Iterable
-from typing import Optional
 import redis
 
 from sirope.oid import OID
@@ -17,6 +16,7 @@ from sirope.utils import cls_from_str
 
 class Sirope:
     OID_ID = "__oid__"
+    NEXT_IDS_ID = "__next_ids__"
 
     def __init__(self, redis_obj: redis.Redis=None):
         """Creates a Sirope object from a given Redis.
@@ -28,21 +28,32 @@ class Sirope:
             self._redis = redis_obj
         self._indexes = SafeIndex.get(self._redis)
 
+    def __create_next_id(self, ns: str):
+        return self._redis.hincrby(Sirope.NEXT_IDS_ID, ns, 1) - 1
+
+    def __get_next_id(self, ns: str):
+        bytes_toret = self._redis.hget(Sirope.NEXT_IDS_ID, ns)
+
+        if not bytes_toret:
+            bytes_toret = b'0'
+
+        return int(bytes_toret.decode("utf-8", "replace"))
+
     def save(self, obj: object) -> OID:
         """Saves an object to the Redis store."""
         oid = obj.__dict__.get(Sirope.OID_ID)
 
         if not oid:
-            ns = full_name_from_obj(obj)
-            oid = OID(obj.__class__, self._redis.hlen(ns))
+            num_id = self.__create_next_id(full_name_from_obj(obj))
+            oid = OID(obj.__class__, num_id)
 
             # Add the oid to the object
             obj.__dict__[Sirope.OID_ID] = oid
-        
+
         self._redis.hset(
             oid.namespace,
             str(oid.num),
-            Sirope._json_from_obj(obj))
+            Sirope.__json_from_obj(obj))
 
         return obj.__dict__[Sirope.OID_ID]
 
@@ -55,7 +66,7 @@ class Sirope:
             raise NameError(ns)
 
         str_num = str(oid.num)
-        return Sirope._obj_from_json(cls, self._redis.hget(ns, str_num))
+        return Sirope.__obj_from_json(cls, self._redis.hget(ns, str_num))
 
     def exists(self, oid: OID) -> bool:
         """Determines whether an object exists or not."""
@@ -79,17 +90,18 @@ class Sirope:
                 self._redis.hdel(ns, *lnums)
 
     def num_objs(self, cls: type) -> int:
-        """Returns the number of objects stored for this class."""
+        """Returns the total number of objects stored for this class."""
         return self._redis.hlen(full_name_from_obj(cls))
 
     def num_safe_indexes(self) -> int:
+        """Returns the total number of safe indexes for this class."""
         return len(self._indexes)
 
     def enumerate(self, cls: type, max: int = 0) -> Iterable[object]:
         """Returns all objects stored for this class, as an iterator."""
         num = 0
         for vp in self._redis.hscan_iter(full_name_from_obj(cls)):
-            yield Sirope._obj_from_json(cls, vp[1])
+            yield Sirope.__obj_from_json(cls, vp[1])
 
             num += 1
             if (max > 0
@@ -100,28 +112,43 @@ class Sirope:
         """Returns an iterable for all objects stored for this class."""
         json_objs = self._redis.hvals(full_name_from_obj(cls))
         for obj in json_objs:
-            yield Sirope._obj_from_json(cls, obj)
+            yield Sirope.__obj_from_json(cls, obj)
 
     def load_first(self, cls: type, num: int) -> Iterable[object]:
         """Returns the first max objects in stored order for this class."""
         # Determine num
         num = max(1, num)
+        num_objs = self.num_objs(cls)
+        num = min(num, num_objs)
 
         # Retrieve in store order
-        for i in range(num):
-            yield self.load(OID.from_pair((full_name_from_obj(cls), i)))
+        i = 0
+        cls_name = full_name_from_obj(cls)
+        while num > 0:
+            obj = self.load(OID.from_pair((cls_name, i)))
+            i += 1
 
+            if obj:
+                num -= 1
+                yield obj
 
     def load_last(self, cls: type, num: int) -> Iterable[object]:
-        """Returns the last max objects in stored order for this class."""
-        last = self.num_objs(cls) - 1
-
+        """Returns the last num objects in stored order for this class."""
         # Determine max
-        num = min(last + 1, max(1, num))
+        num = max(num, 1)
+        num_objs = self.num_objs(cls)
+        num = min(num, num_objs)
 
         # Retrieve in store order
-        for i in range(last, last - num, -1):
-            yield self.load(OID.from_pair((full_name_from_obj(cls), i)))
+        cls_name = full_name_from_obj(cls)
+        i = self.__get_next_id(cls_name) - 1
+        while num > 0:
+            obj = self.load(OID.from_pair((cls_name, i)))
+            i -= 1
+
+            if obj:
+                num -= 1
+                yield obj
 
     def multi_load(self, oids: "list[OID]") -> Iterable[object]:
         """Returns an iterable for the objects corresponding
@@ -135,7 +162,7 @@ class Sirope:
         for ns, keys in dict_objs.items():
             cls = cls_from_str(ns)
             for jobj in self._redis.hmget(ns, *keys):
-                yield Sirope._obj_from_json(cls, jobj)
+                yield Sirope.__obj_from_json(cls, jobj)
 
     def load_all_keys(self, cls: type) -> Iterable[OID]:
         """Returns an iterable of oid's of stored objects for this class."""
@@ -150,7 +177,7 @@ class Sirope:
 
         num = 0
         for vp in self._redis.hscan_iter(ns):
-            obj = Sirope._obj_from_json(cls, vp[1])
+            obj = Sirope.__obj_from_json(cls, vp[1])
 
             if pred(obj):
                 yield obj
@@ -158,14 +185,14 @@ class Sirope:
 
             if max > 0 and num >= max:
                 break
-            
+
     def find_first(self, cls: type, pred: Callable) -> "object|None":
         """Returns the first object compliant with pred, or None."""
         ns = full_name_from_obj(cls)
         toret = None
 
         for vp in self._redis.hscan_iter(ns):
-            obj = Sirope._obj_from_json(cls, vp[1])
+            obj = Sirope.__obj_from_json(cls, vp[1])
 
             if pred(obj):
                 toret = obj
@@ -180,7 +207,7 @@ class Sirope:
         return self._indexes.build_for(oid)
 
     @staticmethod
-    def _obj_from_json(cls: type, json_txt: "str|bytes|None") -> object:
+    def __obj_from_json(cls: type, json_txt: "str|bytes|None") -> object:
         if not cls:
             raise ValueError("invalid class")
 
@@ -198,5 +225,5 @@ class Sirope:
         return toret
 
     @staticmethod
-    def _json_from_obj(obj: object) -> str:
+    def __json_from_obj(obj: object) -> str:
         return JSONCoder().encode(obj.__dict__)

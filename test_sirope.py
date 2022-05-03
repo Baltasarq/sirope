@@ -140,11 +140,12 @@ class TestSirope(unittest.TestCase):
     def tearDown(self) -> None:
         super().tearDown()
 
-        if self._sirope.exists(self._oid1):
+        self._sirope._redis.flushdb()
+        """if self._sirope.exists(self._oid1):
             self._sirope.delete(self._oid1)
 
         if self._sirope.exists(self._oid2):
-            self._sirope.delete(self._oid2)
+            self._sirope.delete(self._oid2)"""
 
     def test_oid(self):
         self.assertTrue(self._oid1.namespace.endswith(Person.__name__))
@@ -193,14 +194,15 @@ class TestSirope(unittest.TestCase):
 
         oid = self._sirope.save(self._p1)
         obj_p1 = self._sirope.load(oid)
+        self._sirope.delete(self._oid1)
 
         self.assertEqual(oid, self._oid1)
         self.assertEqual(oid, self._p1.__oid__)
         self.assertEqual(oid, obj_p1.__oid__)
         self.assertEqual(self._p1.__oid__, obj_p1.__oid__)
-        self.assertTrue(self._sirope.exists(oid))
         self.assertEqual(self._p1, obj_p1)
 
+        self._sirope.save(self._p1)
         self._sirope.save(self._p1)
         self.assertTrue(self._sirope.exists(self._oid1))
         self.assertEqual(1, self._sirope.num_objs(Person))
@@ -451,6 +453,39 @@ class TestSirope(unittest.TestCase):
 
         self.assertEqual(0, self._sirope.num_safe_indexes())
         self.assertEqual(0, self._sirope.num_objs(Person))
+
+    def test_problematic_remove(self):
+        p3 = Person("Héctor",
+                          datetime.datetime(1970, 2, 1),
+                          "hectorgr@gmail.com",
+                          datetime.datetime.now().date(),
+                          datetime.datetime.now().time(),
+                          b"hola, Hector")
+
+        p4 = Person("María",
+                          datetime.datetime(1970, 3, 1),
+                          "mariarc@gmail.com",
+                          datetime.datetime.now().date(),
+                          datetime.datetime.now().time(),
+                          b"hola, Maria")
+
+        # Save objects
+        if not self._sirope.exists(self._oid1):
+            self._sirope.save(self._p1)
+
+        if not self._sirope.exists(self._oid2):
+            self._sirope.save(self._p2)
+
+        oid3 = self._sirope.save(p3)
+
+        # Remove the one in the middle
+        self._sirope.delete(self._oid2)
+
+        # Store a new object
+        oid4 = self._sirope.save(p4)
+
+        self._sirope.multi_delete([self._oid1, self._oid2, oid3, oid4])
+        self.assertNotEqual(oid3, oid4)
 
 
 if __name__ == "__main__":
