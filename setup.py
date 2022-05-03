@@ -1,14 +1,13 @@
 # Sirope (c) Baltasar 2022 MIT License <baltasarq@gmail.com>
 
 
-import os
 from distutils.core import setup
 
 
 setup(
     name = 'sirope',
     packages = ['sirope'],
-    version = '0.2.3',
+    version = '0.3.1',
     license='MIT',
     description = 'Simple Interface for Redis of Object Persistence',
     author = 'Baltasar',
