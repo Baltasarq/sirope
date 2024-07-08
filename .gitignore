@@ -9,3 +9,6 @@ dump.rdb
 
 # Pypi distribution
 dist/
+
+# VSCode leftovers
+.vscode/
